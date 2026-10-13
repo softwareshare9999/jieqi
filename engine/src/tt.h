@@ -29,13 +29,13 @@ public:
     TranspositionTable() = default;
     TranspositionTable(const TranspositionTable&) = delete;
     TranspositionTable& operator=(const TranspositionTable&) = delete;
-    ~TranspositionTable() { std::free(table_); }
+    ~TranspositionTable() { aligned_free(table_); }
 
     void resize(std::size_t mb) {
         std::size_t n = 1;  // entries (a power of two, at least one cache line)
         while (n * 2 * sizeof(TTEntry) <= mb * 1024 * 1024) n *= 2;
         n = std::max<std::size_t>(n, 4);
-        std::free(table_);
+        aligned_free(table_);
         table_ = static_cast<Line*>(alloc_large(n / 4 * sizeof(Line)));  // zeroed; huge pages where the kernel gives them
         if (!table_) throw std::bad_alloc();
         lines_ = n / 4;

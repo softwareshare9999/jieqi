@@ -27,6 +27,9 @@ endif()
 add_executable(jqe src/main.cpp src/uci.cpp src/selfplay.cpp)
 target_link_libraries(jqe PRIVATE jqe_core)
 target_compile_options(jqe PRIVATE -Wall -Wextra)
+if(MINGW)
+    target_link_options(jqe PRIVATE -static)
+endif()
 
 # Differential test against the project's independent rules oracle (native/, original code).
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../native ${CMAKE_BINARY_DIR}/native_oracle EXCLUDE_FROM_ALL)

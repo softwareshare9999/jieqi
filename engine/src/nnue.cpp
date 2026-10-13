@@ -9,7 +9,9 @@
 #include <cstring>
 #include <memory>
 #include <vector>
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__)
 #include <xmmintrin.h>
+#endif
 #if defined(__AVX2__) && defined(__FMA__)
 #include <immintrin.h>
 #define JQ_AVX2 1
@@ -23,12 +25,12 @@ int g_urnBase = NUM_PIECE_FEATURES;
 namespace {
 
 struct AlignedFree {
-    void operator()(float* p) const { std::free(p); }
+    void operator()(float* p) const { aligned_free(p); }
 };
 using Buf = std::unique_ptr<float[], AlignedFree>;
 Buf alloc(std::size_t n) {
     const std::size_t bytes = ((n * sizeof(float) + 63) / 64) * 64;
-    float* p = static_cast<float*>(std::aligned_alloc(64, bytes ? bytes : 64));
+    float* p = static_cast<float*>(aligned_malloc(64, bytes ? bytes : 64));
     std::memset(p, 0, bytes ? bytes : 64);
     return Buf(p);
 }
@@ -40,7 +42,7 @@ Buf alloc(std::size_t n) {
 constexpr int QA = 127, QF = 254;
 
 struct AlignedFreeI {
-    void operator()(void* p) const { std::free(p); }
+    void operator()(void* p) const { aligned_free(p); }
 };
 template <typename T>
 std::unique_ptr<T[], AlignedFreeI> alloc_t(std::size_t n) {
@@ -177,7 +179,15 @@ void set_quantized(bool on) {
 bool quantized() { return g_quant; }
 
 void unload() { g_loaded = false; }
-void set_flush_denormals() { _mm_setcsr(_mm_getcsr() | 0x8040); }  // FTZ | DAZ for this thread
+void set_flush_denormals() {  // for this thread
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__)
+    _mm_setcsr(_mm_getcsr() | 0x8040);  // FTZ | DAZ
+#elif defined(__aarch64__)
+    uint64_t fpcr;
+    __asm__ volatile("mrs %0, fpcr" : "=r"(fpcr));
+    __asm__ volatile("msr fpcr, %0" : : "r"(fpcr | (uint64_t(1) << 24)));  // FZ
+#endif
+}
 bool loaded() { return g_loaded; }
 int ft_size() { return net.ft + 1; }
 
