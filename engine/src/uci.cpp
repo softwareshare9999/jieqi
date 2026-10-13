@@ -66,8 +66,16 @@ struct Engine {
         while (is >> tok && tok != "value") name += (name.empty() ? "" : " ") + tok;
         while (is >> tok) value += (value.empty() ? "" : " ") + tok;
         wait();
+        try {
+            apply_option(name, value);
+        } catch (const std::exception&) {
+            out("info string bad value for option " + name + ": " + value);
+        }
+    }
+
+    void apply_option(const std::string& name, const std::string& value) {
         if (name == "Hash") searcher.resize_hash(std::size_t(std::max(1, std::stoi(value))));
-        else if (name == "Threads") searcher.set_threads(std::stoi(value));
+        else if (name == "Threads") searcher.set_threads(std::max(1, std::stoi(value)));
         else if (name == "Clear Hash") searcher.clear();
         else if (name == "NNUEQuant") { nnue::set_quantized(value == "true"); searcher.clear(); }
         else if (name == "EvalFile") {

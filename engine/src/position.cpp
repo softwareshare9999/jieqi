@@ -1,11 +1,14 @@
 #include "position.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <bitset>
 #include <cstring>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace jq {
 
@@ -98,7 +101,16 @@ bool Position::set_fen(const std::string& fen, std::string* error) {
     std::istringstream in(fen);
     std::string boardText, side, pools = "-", clock = "0", number = "1";
     if (!(in >> boardText >> side)) return fail(error, "fen needs board and side");
-    in >> pools >> clock >> number;
+    in >> pools;
+    std::vector<std::string> rest;
+    for (std::string t; in >> t;) rest.push_back(t);
+    // JieqiBox and newer Pikafish insert the captured face-down pieces after the pools:
+    // board side pools captured clock number. That field is not needed here.
+    if (rest.size() >= 3) rest.erase(rest.begin());
+    if (!rest.empty()) clock = rest[0];
+    if (clock.empty() || clock.size() > 4 ||
+        !std::all_of(clock.begin(), clock.end(), [](unsigned char ch) { return std::isdigit(ch); }))
+        return fail(error, "bad no-capture count");
     std::memset(board, 0, sizeof board);
     std::memset(pidx, -1, sizeof pidx);
     pcount[0] = pcount[1] = 0;
