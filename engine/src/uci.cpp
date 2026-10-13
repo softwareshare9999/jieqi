@@ -47,8 +47,8 @@ struct Engine {
     }
 
     void cmd_uci() {
-        out("id name jqe 0.1");
-        out("id author jqe authors");
+        out("id name jqe 0.1 (build by softwareshare9999.pages.dev)");
+        out("id author Devin O'Keefe; build by softwareshare9999.pages.dev");
         out("option name Hash type spin default 64 min 1 max 16384");
         out("option name Threads type spin default 1 min 1 max 256");
         out("option name EvalFile type string default <empty>");
