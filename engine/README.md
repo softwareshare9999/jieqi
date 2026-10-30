@@ -35,6 +35,25 @@ printf 'setoption name EvalFile value %s\nbench\nquit\n' "$PWD/engine/nets/it014
 # ... Nodes searched: 45315
 ```
 
+A net does not have to be configured, and in a GUI it usually is not. At startup the engine looks
+for `it014.jqn` or `jqe.jqn` in `nets/` beside the executable, beside the executable, and in the
+working directory, and loads the first file that starts with the format's `JQN1` magic. An explicit
+`EvalFile` overrides the search, and an empty `EvalFile` turns the net off.
+
+Whether a net is in use is visible without a GUI dialog, in two places:
+
+- the `isready` reply is preceded by `info string nnue loaded PATH` or
+  `info string nnue off (classical eval)`;
+- every `info depth ...` line carries `nnue 1` or `nnue 0`.
+
+The two evaluations differ in more than strength: from the start position the net plays `a3a4` and
+the classical evaluation `h2h6`, so the move alone tells them apart. `engine/tests/net_loading.py`
+checks the discovery, the override, the off switch and this difference.
+
+The `EvalFile` default is an empty string rather than a placeholder like `<empty>`. GUIs copy the
+default into their own settings file, and some of them write that file as XML, where a `<...>`
+value is not well-formed.
+
 ## Information model
 
 Each side's urn holds the identities still unaccounted for among its face-down pieces, as seen by

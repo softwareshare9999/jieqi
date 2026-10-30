@@ -9,6 +9,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace jq {
 
@@ -50,6 +51,39 @@ void out(const std::string& s) {
     log_line("engine>gui", s);
 }
 
+// Net discovery. A GUI does not have to configure EvalFile: without a net the engine falls back to
+// the classical evaluation and is much weaker, so look for a JQN1 net next to the executable, beside
+// a nets/ directory, and in the working directory, in that order. Only files with the format's magic
+// are taken, so an unrelated file with a matching name is not loaded.
+bool has_jqn_magic(const std::string& path) {
+    std::FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f) return false;
+    char magic[4] = {0, 0, 0, 0};
+    const std::size_t n = std::fread(magic, 1, 4, f);
+    std::fclose(f);
+    return n == 4 && std::string(magic, 4) == "JQN1";
+}
+
+std::string find_net(const std::string& argv0) {
+    std::vector<std::string> dirs;
+    if (!argv0.empty()) {
+        const std::size_t slash = argv0.find_last_of("/\\");
+        dirs.push_back(slash == std::string::npos ? std::string(".") : argv0.substr(0, slash));
+    }
+    dirs.push_back(".");
+    const char* names[] = {"it014.jqn", "jqe.jqn"};
+    for (const std::string& dir : dirs) {
+        std::vector<std::string> candidates;
+        for (const char* name : names) {
+            candidates.push_back(dir + "/nets/" + name);
+            candidates.push_back(dir + "/" + name);
+        }
+        for (const std::string& c : candidates)
+            if (has_jqn_magic(c)) return c;
+    }
+    return std::string();
+}
+
 const char* BENCH_FENS[] = {
     "xxxxkxxxx/9/1x5x1/x1x1x1x1x/9/9/X1X1X1X1X/1X5X1/9/XXXXKXXXX w R2A2C2P5N2B2r2a2c2p5n2b2 0 1",
     "xxxxkxxxx/9/1x5x1/x1x1x1x1x/9/4P4/X1X3X1X/1X5X1/9/XXXXKXXXX b R2A2C2P4N2B2r2a2c2p5n2b2 1 1",
@@ -67,6 +101,15 @@ struct Engine {
 
     Engine() { pos.set_fen(START_FEN); }
     ~Engine() { wait(); }
+
+    // Load a net found on disk so the engine is at full strength without any GUI setting.
+    void autoload_net(const std::string& argv0) {
+        const std::string path = find_net(argv0);
+        if (path.empty()) return;
+        std::string err;
+        if (!nnue::load(path, &err)) out("info string EvalFile load failed: " + err);
+        else { evalFile = path; out("info string EvalFile loaded " + path); }
+    }
     void wait() {
         if (thread.joinable()) {
             searcher.stop();
@@ -79,7 +122,9 @@ struct Engine {
         out("id author Devin O'Keefe; build by softwareshare9999.pages.dev");
         out("option name Hash type spin default 64 min 1 max 16384");
         out("option name Threads type spin default 1 min 1 max 256");
-        out("option name EvalFile type string default <empty>");
+        // A string default is empty rather than a placeholder: GUIs serialise this value into
+        // their own settings file, and a "<...>" placeholder is markup to an XML writer.
+        out("option name EvalFile type string default ");
         out("option name Clear Hash type button");
         out("option name NNUEQuant type check default true");
         for (const Param& p : params())
@@ -109,7 +154,7 @@ struct Engine {
         else if (name == "EvalFile") {
             evalFile = value;
             std::string err;
-            if (value.empty() || value == "<empty>") nnue::unload();
+            if (value.empty() || value == "<empty>") { nnue::unload(); out("info string EvalFile unloaded"); }
             else if (!nnue::load(value, &err)) out("info string EvalFile load failed: " + err);
             else out("info string EvalFile loaded " + value);
             searcher.clear();
@@ -204,6 +249,7 @@ struct Engine {
 int uci_loop(int argc, char** argv) {
     if (const char* env = std::getenv("JQE_LOG")) open_log(env);
     Engine engine;
+    engine.autoload_net(argc > 0 ? argv[0] : "");
     std::string line;
     // Command-line arguments are executed as one command (e.g. `jqe bench 8`), then exit.
     const bool once = argc > 1;
@@ -216,7 +262,12 @@ int uci_loop(int argc, char** argv) {
         std::string cmd;
         is >> cmd;
         if (cmd == "uci") engine.cmd_uci();
-        else if (cmd == "isready") { out("readyok"); }
+        else if (cmd == "isready") {
+            // Report the net state: this is the one line a GUI shows that proves which evaluation
+            // (and so which net, if any) the engine will search with.
+            out(std::string("info string nnue ") + (nnue::loaded() ? "loaded " + engine.evalFile : "off (classical eval)"));
+            out("readyok");
+        }
         else if (cmd == "ucinewgame") { engine.wait(); engine.searcher.clear(); }
         else if (cmd == "setoption") engine.cmd_setoption(is);
         else if (cmd == "position") { engine.wait(); engine.cmd_position(is); }

@@ -1,0 +1,23 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../JieqiBox"
+		},
+		{
+			"path": "../JieqiArena"
+		},
+		{
+			"path": "../pikafish-jieqi-wasm"
+		},
+		{
+			"path": "D:/PengfeiJieQi/PengfeiChess-5.9.1.0_ReleaseJieQi_20260929"
+		},
+		{
+			"path": "D:/Games/ChineseChess/Engines/Pikafish/JIEQI/Test"
+		}
+	],
+	"settings": {}
+}

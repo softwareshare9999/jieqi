@@ -11,6 +11,16 @@
   `engine/tests/gui_dialects.py`).
 * **Diagnostics.** `JQE_LOG=PATH` (or `log PATH`) records the whole UCI dialogue, and
   `engine/tools/uci_tap.py` logs the same for any engine from outside it.
+* **Nets are found, and their use is visible.** The engine loads `it014.jqn`/`jqe.jqn` from `nets/`
+  beside the executable, beside the executable, or the working directory, taking only files with the
+  `JQN1` magic; an explicit `EvalFile` overrides it and an empty one turns it off. `isready` reports
+  `info string nnue loaded PATH` or `nnue off (classical eval)`, and every `info depth` line now
+  carries `nnue 1` or `nnue 0` (`engine/tests/net_loading.py`).
+* **Fixed.** The `EvalFile` option default was the placeholder `<empty>`. A GUI that writes its
+  settings as XML — PengfeiChess does — produced a malformed `<Default><empty></Default>`, so its
+  engine-options dialog hung on "loading" and never fetched the option list (jqe's stored
+  `<Options />` was empty with `LastGetOptionsTime` at `01/01/0001`). The default is now an empty
+  string.
 
 ## 0.1.0 (2026-10-13)
 

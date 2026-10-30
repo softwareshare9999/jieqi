@@ -1098,7 +1098,10 @@ void Worker::report(int depth, Value v, Bound bound) {
     if (bound == BOUND_LOWER) s += " lowerbound";
     if (bound == BOUND_UPPER) s += " upperbound";
     s += " nodes " + std::to_string(nn) + " nps " + std::to_string(nn * 1000 / uint64_t(ms)) +
-         " hashfull " + std::to_string(TT.hashfull()) + " time " + std::to_string(ms) + " pv";
+         " hashfull " + std::to_string(TT.hashfull()) + " time " + std::to_string(ms) +
+         // Say which evaluation the score comes from: a GUI that shows the info line makes a
+         // missing net impossible to mistake for a weak-but-working engine.
+         (useNN ? " nnue 1" : " nnue 0") + " pv";
     for (Move m : bestPv) s += " " + move_str(m);
     (*info)(s);
 }
