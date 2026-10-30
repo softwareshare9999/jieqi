@@ -17,9 +17,37 @@ void selfplay(std::istringstream& is);
 namespace {
 
 std::mutex outMutex;
+std::mutex logMutex;
+std::FILE* logFile = nullptr;
+
+// Dialogue log: every command read from the GUI and every line written back, so a session that
+// fails in a GUI can be read instead of guessed at. Off unless JQE_LOG is set in the environment
+// (or `log on` is given a path); a failure to open it never affects the protocol.
+void open_log(const char* path) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    if (logFile) std::fclose(logFile);
+    logFile = std::fopen(path, "ab");
+}
+
+void log_line(const char* direction, const std::string& s) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    if (!logFile) return;
+    std::fprintf(logFile, "%s %s\n", direction, s.c_str());
+    std::fflush(logFile);
+}
+
+void close_log() {
+    std::lock_guard<std::mutex> lock(logMutex);
+    if (logFile) std::fclose(logFile);
+    logFile = nullptr;
+}
+
 void out(const std::string& s) {
-    std::lock_guard<std::mutex> lock(outMutex);
-    std::cout << s << std::endl;
+    {
+        std::lock_guard<std::mutex> lock(outMutex);
+        std::cout << s << std::endl;
+    }
+    log_line("engine>gui", s);
 }
 
 const char* BENCH_FENS[] = {
@@ -174,6 +202,7 @@ struct Engine {
 }  // namespace
 
 int uci_loop(int argc, char** argv) {
+    if (const char* env = std::getenv("JQE_LOG")) open_log(env);
     Engine engine;
     std::string line;
     // Command-line arguments are executed as one command (e.g. `jqe bench 8`), then exit.
@@ -182,6 +211,7 @@ int uci_loop(int argc, char** argv) {
         for (int i = 1; i < argc; ++i) line += (i > 1 ? " " : "") + std::string(argv[i]);
     }
     while (once || std::getline(std::cin, line)) {
+        log_line("gui>engine", line);
         std::istringstream is(line);
         std::string cmd;
         is >> cmd;
@@ -190,6 +220,12 @@ int uci_loop(int argc, char** argv) {
         else if (cmd == "ucinewgame") { engine.wait(); engine.searcher.clear(); }
         else if (cmd == "setoption") engine.cmd_setoption(is);
         else if (cmd == "position") { engine.wait(); engine.cmd_position(is); }
+        else if (cmd == "log") {  // `log PATH` starts logging, `log off` stops; for GUI diagnosis
+            std::string path;
+            is >> path;
+            if (path.empty() || path == "off") { close_log(); out("info string log off"); }
+            else { open_log(path.c_str()); out("info string log " + path); }
+        }
         else if (cmd == "go") engine.cmd_go(is);
         else if (cmd == "stop") engine.wait();
         else if (cmd == "quit") break;
@@ -260,6 +296,7 @@ int uci_loop(int argc, char** argv) {
         }
     }
     engine.wait();
+    close_log();
     return 0;
 }
 

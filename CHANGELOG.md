@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+* **Engine.** Accept the FEN field orders that GUIs actually send, and diagnose the sessions that
+  used to fail silently. PengfeiChess writes `board side pools captured - - no-capture number` and
+  the ACE dialect writes `board $pools side - - no-capture number`; jqe read the fourth field as a
+  counter, answered `info string bad fen: bad no-capture count`, kept the previous position and
+  still replied with a plausible `bestmove` for that stale position. The pool, the side and the two
+  counters are now recognised by shape, so every dialect above loads ([engine/README.md](engine/README.md),
+  `engine/tests/gui_dialects.py`).
+* **Diagnostics.** `JQE_LOG=PATH` (or `log PATH`) records the whole UCI dialogue, and
+  `engine/tools/uci_tap.py` logs the same for any engine from outside it.
+
 ## 0.1.0 (2026-10-13)
 
 The first release.

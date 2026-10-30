@@ -33,6 +33,26 @@ bool fail(std::string* error, const char* text) {
     if (error) *error = text;
     return false;
 }
+bool all_digits(const std::string& s) {
+    return !s.empty() && std::all_of(s.begin(), s.end(), [](unsigned char ch) { return std::isdigit(ch); });
+}
+// The pool field is counts of identity letters (R A C P N B) and it may be the placeholder '-'.
+// The native UCI_PF dialect prefixes it with '$' (board $pools side ...). A token that starts with
+// a digit or with an unrelated letter is not a pool: it is a counter or a castling placeholder.
+bool looks_like_pool(const std::string& token) {
+    std::string s = token;
+    if (!s.empty() && s[0] == '$') s.erase(0, 1);
+    if (s.empty()) return false;
+    if (s == "-") return true;
+    const PieceType first = type_from_char(s[0]);
+    if (first < ROOK || first > SOLDIER) return false;
+    for (char ch : s) {
+        if (std::isdigit(static_cast<unsigned char>(ch))) continue;
+        const PieceType t = type_from_char(ch);
+        if (t < ROOK || t > SOLDIER) return false;
+    }
+    return true;
+}
 }  // namespace
 
 char piece_char(Piece p) {
@@ -99,18 +119,49 @@ uint64_t Position::compute_key() const {
 bool Position::set_fen(const std::string& fen, std::string* error) {
     init_tables();
     std::istringstream in(fen);
-    std::string boardText, side, pools = "-", clock = "0", number = "1";
-    if (!(in >> boardText >> side)) return fail(error, "fen needs board and side");
-    in >> pools;
-    std::vector<std::string> rest;
-    for (std::string t; in >> t;) rest.push_back(t);
-    // JieqiBox and newer Pikafish insert the captured face-down pieces after the pools:
-    // board side pools captured clock number. That field is not needed here.
-    if (rest.size() >= 3) rest.erase(rest.begin());
-    if (!rest.empty()) clock = rest[0];
-    if (clock.empty() || clock.size() > 4 ||
-        !std::all_of(clock.begin(), clock.end(), [](unsigned char ch) { return std::isdigit(ch); }))
-        return fail(error, "bad no-capture count");
+    std::string side, pools = "-", clock = "0", number = "1";
+    std::vector<std::string> fields;
+    for (std::string t; in >> t;) fields.push_back(t);
+    if (fields.size() < 2) return fail(error, "fen needs board and side");
+    // The fields around the side to move vary by dialect, so they are classified by shape rather
+    // than by position:
+    //   jqe / Pikafish          board side pools no-capture number
+    //   JieqiBox                board side pools captured no-capture number, or
+    //                           board side - - no-capture number pools
+    //   ACE UCI_PF (Pengfei)    board $pools side - - no-capture number
+    // In all of them the pool counts are the first field carrying identity letters ($-marked for
+    // ACE), '-' standing for an empty pool. The counters are the last two digit-only fields, in
+    // order, and the side is the single w/r/b field that precedes them. The captured-identities
+    // field is not needed: it only names identities the opponent took face down, which the urn
+    // model already treats as unknown.
+    std::vector<std::size_t> counters;
+    std::vector<std::size_t> pools_;  // candidate pool fields, in the order they appear
+    std::size_t sideIdx = std::string::npos;
+    for (std::size_t i = 1; i < fields.size(); ++i) {
+        const std::string& f = fields[i];
+        if (all_digits(f)) { counters.push_back(i); continue; }
+        // The side is tested before the pool: "b" would otherwise read as an elephant count.
+        if ((f == "w" || f == "r" || f == "b") && sideIdx == std::string::npos) sideIdx = i;
+        else if (f[0] == '$' || f == "-" || looks_like_pool(f)) pools_.push_back(i);
+    }
+    if (counters.size() < 2) return fail(error, "fen needs a no-capture count and a move number");
+    if (sideIdx == std::string::npos) return fail(error, "fen needs a side to move");
+    if (sideIdx > counters.front()) return fail(error, "fen needs a no-capture count after the side");
+    // Real counts win over a '-' placeholder, and ACE's '$' marker wins over both; otherwise the
+    // first candidate is the pool and the second is the captured-identities field, which is skipped.
+    std::size_t poolIdx = std::string::npos;
+    for (std::size_t i : pools_)
+        if (fields[i][0] == '$') { poolIdx = i; break; }
+    if (poolIdx == std::string::npos)
+        for (std::size_t i : pools_)
+            if (fields[i] != "-") { poolIdx = i; break; }
+    if (poolIdx == std::string::npos && !pools_.empty()) poolIdx = pools_.front();
+    if (poolIdx != std::string::npos) pools = fields[poolIdx];
+    side = fields[sideIdx];
+    clock = fields[counters.front()];
+    number = fields[counters.back()];
+    if (clock.size() > 4) return fail(error, "bad no-capture count");
+    const std::string boardText = fields[0];
     std::memset(board, 0, sizeof board);
     std::memset(pidx, -1, sizeof pidx);
     pcount[0] = pcount[1] = 0;
@@ -145,6 +196,7 @@ bool Position::set_fen(const std::string& fen, std::string* error) {
     else if (side == "b") stm = BLACK;
     else return fail(error, "bad side to move");
     std::memset(urn, 0, sizeof urn);
+    if (!pools.empty() && pools[0] == '$') pools.erase(0, 1);  // ACE UCI_PF marker
     if (pools != "-") {
         // Pool letters are R A C P N B in Pikafish order; accept any order.
         for (std::size_t i = 0; i < pools.size();) {

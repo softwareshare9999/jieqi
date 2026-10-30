@@ -88,6 +88,11 @@ start for N = 1 to 3), `perftc N` (with chance outcomes), `bench [DEPTH]` (defau
 and `selfplay` (training records, `src/selfplay.cpp`). Arguments on the command line run one
 command and exit, as in `jqe perft 3`.
 
+Setting `JQE_LOG=PATH` in the environment (or sending `log PATH`, `log off` to stop) records the
+whole UCI dialogue, GUI lines and engine lines, to PATH; nothing is written unless asked. Use it
+when a GUI drives the engine badly: the log shows which command the engine refused and what it
+replied. `engine/tools/uci_tap.py` does the same from outside the engine and works with any engine.
+
 ### Positions and moves
 
 A FEN has five fields, `board side pools no-capture-plies move-number`:
@@ -101,6 +106,24 @@ for a face-down piece, which can only stand on its starting point. The side is `
 Red and `b` for Black. The pools are the urns, as counts of the identities each side's face-down
 pieces can still be: `R2A2C2P5N2B2` for Red at the start, written in Pikafish's order R A C P N B
 but read in any order, `-` when both are empty. The move number is read and ignored.
+
+GUIs write the same position in other field orders, and all of them are accepted. The pool counts
+are recognised as the first field that reads as identity counts (`$`-prefixed in the ACE dialect,
+`-` for an empty pool), the counters are the last two all-digit fields, and the side is the single
+`w`/`r`/`b` field before them. A field naming the face-down pieces the opponent captured is
+ignored: the urn already treats those identities as unknown to us.
+
+| Dialect | Example |
+| --- | --- |
+| jqe, Pikafish | `board side pools no-capture number` |
+| JieqiBox | `board side pools captured - - no-capture number` |
+| PengfeiChess 7-field | `board side pools captured - - no-capture number` |
+| PengfeiChess 6-field | `board side pools captured - no-capture number` |
+| ACE `UCI_PF` | `board $pools side - - no-capture number` |
+
+A malformed FEN is refused with `info string bad fen: <reason>`, and the previous position is
+kept, so a search would then answer for the wrong position. Check that line first when a GUI
+shows an engine that replies but never moves.
 
 A move is `from to` in Pikafish's coordinates, files a to i and ranks 0 to 9 from Red's side
 (`h2e2`). A face-down mover's move adds the identity it revealed, in the mover's case (`a3a4P`);
@@ -135,6 +158,11 @@ is one), `--net`, and `--threads` and `--hash` as defaults for the new-game dial
 
 - `build/jqe_difftest N SEED`: plays N seeded random games and compares the engine's legal moves,
   check, chase threats, repetition verdicts and position updates with the referee's at every ply.
+- `tools/uci_tap.py`: a transparent process between a GUI and an engine that records every line in
+  both directions to JSONL (`--engine PATH --log FILE`). Point the GUI's engine path at it to see
+  exactly what the GUI sends. It forwards bytes unchanged, so the engine behaves as it would alone.
+- `tests/gui_dialects.py`: replays the handshake and `go` of each supported FEN dialect through the
+  tap and fails if the engine refuses an input or produces no usable `bestmove`.
 - `tests/vectors.py`: test vectors for ports of the engine, in `tests/vectors/` (rules and the
   referee's verdicts on 130 seeded games, network evaluations, the libm calls, the bench and 799
   searches); the TypeScript port on devinokeefe.com is checked against them.
