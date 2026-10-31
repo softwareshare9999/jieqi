@@ -24,8 +24,10 @@ START = "xxxxkxxxx/9/1x5x1/x1x1x1x1x/9/9/X1X1X1X1X/1X5X1/9/XXXXKXXXX"
 # The dialects a GUI may use for the same position.
 FENS = {
     "jqe/pikafish 5-field": f"{START} w R2A2C2P5N2B2r2a2c2p5n2b2 0 1",
-    "jieqibox 6-field": f"{START} w R2A2C2P5N2B2r2a2c2p5n2b2 - - 0 1",
-    "jieqibox trailing": f"{START} w - - 0 1 R2A2C2P5N2B2r2a2c2p5n2b2",
+    "jieqibox new 6-field": f"{START} w R2A2C2P5N2B2r2a2c2p5n2b2 - - 0 1",
+    "jieqibox new no-pools": f"{START} w A2B2N2R2C2P5a2b2n2r2c2p5 - 0 1",
+    "jieqibox old 7-field": f"{START} A2B2N2R2C2P5a2b2n2r2c2p5 w - - 0 1",
+    "jieqibox old 3-field": f"{START} A2B2N2R2C2P5a2b2n2r2c2p5 w",
     "pengfei 7-field": f"{START} w A2B2N2R2C2P5a2b2n2r2c2p5 - - 0 1",
     "pengfei 6-field": f"{START} w A2B2N2R2C2P5a2b2n2r2c2p5 - 0 1",
     "ace uci_pf": f"{START} $R2A2C2P5N2B2r2a2c2p5n2b2 w - - 0 1",

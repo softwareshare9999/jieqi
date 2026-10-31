@@ -250,12 +250,25 @@ int uci_loop(int argc, char** argv) {
     if (const char* env = std::getenv("JQE_LOG")) open_log(env);
     Engine engine;
     engine.autoload_net(argc > 0 ? argv[0] : "");
+    // A net path in the arguments loads the net and then behaves like any other engine: a GUI
+    // started with `jqe /path/to/it014.jqn` must still get its handshake. Only a genuine command
+    // argument (`jqe bench 8`) runs once and exits.
+    std::vector<std::string> args;
+    for (int i = 1; i < argc; ++i) {
+        const std::string a = argv[i];
+        if (a.size() > 4 && a.compare(a.size() - 4, 4, ".jqn") == 0) {
+            std::string err;
+            if (!nnue::load(a, &err)) out("info string EvalFile load failed: " + err);
+            else { engine.evalFile = a; out("info string EvalFile loaded " + a); }
+        } else {
+            args.push_back(a);
+        }
+    }
     std::string line;
     // Command-line arguments are executed as one command (e.g. `jqe bench 8`), then exit.
-    const bool once = argc > 1;
-    if (once) {
-        for (int i = 1; i < argc; ++i) line += (i > 1 ? " " : "") + std::string(argv[i]);
-    }
+    const bool once = !args.empty();
+    if (once)
+        for (std::size_t i = 0; i < args.size(); ++i) line += (i > 0 ? " " : "") + args[i];
     while (once || std::getline(std::cin, line)) {
         log_line("gui>engine", line);
         std::istringstream is(line);

@@ -126,8 +126,8 @@ bool Position::set_fen(const std::string& fen, std::string* error) {
     // The fields around the side to move vary by dialect, so they are classified by shape rather
     // than by position:
     //   jqe / Pikafish          board side pools no-capture number
-    //   JieqiBox                board side pools captured no-capture number, or
-    //                           board side - - no-capture number pools
+    //   JieqiBox "new"          board side pools captured no-capture number
+    //   JieqiBox "old"          board pools side [castling en-passant no-capture number]
     //   ACE UCI_PF (Pengfei)    board $pools side - - no-capture number
     // In all of them the pool counts are the first field carrying identity letters ($-marked for
     // ACE), '-' standing for an empty pool. The counters are the last two digit-only fields, in
@@ -144,9 +144,11 @@ bool Position::set_fen(const std::string& fen, std::string* error) {
         if ((f == "w" || f == "r" || f == "b") && sideIdx == std::string::npos) sideIdx = i;
         else if (f[0] == '$' || f == "-" || looks_like_pool(f)) pools_.push_back(i);
     }
-    if (counters.size() < 2) return fail(error, "fen needs a no-capture count and a move number");
     if (sideIdx == std::string::npos) return fail(error, "fen needs a side to move");
-    if (sideIdx > counters.front()) return fail(error, "fen needs a no-capture count after the side");
+    // Missing counters mean a fresh game: Pikafish and AB-JChess both accept such a FEN and take
+    // 0 1. JieqiBox generates one for its human-versus-AI games in the old field order.
+    if (!counters.empty() && sideIdx > counters.front())
+        return fail(error, "fen needs a no-capture count after the side");
     // Real counts win over a '-' placeholder, and ACE's '$' marker wins over both; otherwise the
     // first candidate is the pool and the second is the captured-identities field, which is skipped.
     std::size_t poolIdx = std::string::npos;
@@ -158,8 +160,8 @@ bool Position::set_fen(const std::string& fen, std::string* error) {
     if (poolIdx == std::string::npos && !pools_.empty()) poolIdx = pools_.front();
     if (poolIdx != std::string::npos) pools = fields[poolIdx];
     side = fields[sideIdx];
-    clock = fields[counters.front()];
-    number = fields[counters.back()];
+    if (!counters.empty()) clock = fields[counters.front()];
+    if (!counters.empty()) number = fields[counters.back()];
     if (clock.size() > 4) return fail(error, "bad no-capture count");
     const std::string boardText = fields[0];
     std::memset(board, 0, sizeof board);

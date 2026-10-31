@@ -17,6 +17,30 @@ The default is a Release build (`-O3`) tuned for the build machine (`-march=nati
 UndefinedBehaviorSanitizer. `jqe_difftest` builds the referee from `../native` as well.
 `tools/check_all.sh` builds both in `build/check` and checks them.
 
+`.github/workflows/build.yml` builds the four release binaries — `jqe-windows-x64-avx2.exe`,
+`jqe-linux-x64-avx2`, `jqe-macos-arm64` and `jqe-android-arm64` — and bundles them with `it014.jqn`
+and the licence. It also runs on demand: `gh workflow run "Build jqe" --ref <branch>` builds that
+branch without merging it, and the artifact is under the run's page.
+
+## Using it in a GUI
+
+Give the GUI the binary and keep `it014.jqn` in the same folder; nothing else has to be configured,
+because the engine finds and loads the net itself and reports it on `isready`. See
+[Nets](#nets) for the other accepted locations and for the ways to see which evaluation is in use.
+
+| GUI | Binary |
+| --- | --- |
+| PengfeiChess (鹏飞揭棋) | `jqe-windows-x64-avx2.exe`, engine type `UCI` |
+| JieqiBox on Windows | `jqe-windows-x64-avx2.exe` |
+| JieqiBox on Linux | `jqe-linux-x64-avx2` |
+| JieqiBox on macOS (Apple silicon) | `jqe-macos-arm64` |
+| JieqiBox on Android | `jqe-android-arm64`, copied to `/storage/emulated/0/jieqibox/engines` |
+
+JieqiBox copies Android engines into its own storage and makes them executable, and its Android
+build targets API 24 with `targetSdk 28`, so the engine runs as an ordinary executable there. Pick
+"yes" when it asks whether the engine uses NNUE files and give it `it014.jqn`; the engine needs it
+in the same directory, which JieqiBox uses for that file anyway.
+
 ## Nets
 
 - `nets/it014.jqn` (sha256 `f90bd44e8ee244405eb08eb4f784e3f156900f0691f651b5124d50032f8ba160`,
@@ -38,7 +62,9 @@ printf 'setoption name EvalFile value %s\nbench\nquit\n' "$PWD/engine/nets/it014
 A net does not have to be configured, and in a GUI it usually is not. At startup the engine looks
 for `it014.jqn` or `jqe.jqn` in `nets/` beside the executable, beside the executable, and in the
 working directory, and loads the first file that starts with the format's `JQN1` magic. An explicit
-`EvalFile` overrides the search, and an empty `EvalFile` turns the net off.
+`EvalFile` overrides the search, and an empty `EvalFile` turns the net off. A path ending in `.jqn`
+given as a command-line argument also loads that net, and leaves the engine in its normal UCI loop
+rather than running the argument as a one-shot command.
 
 Whether a net is in use is visible without a GUI dialog, in two places:
 
@@ -135,10 +161,14 @@ ignored: the urn already treats those identities as unknown to us.
 | Dialect | Example |
 | --- | --- |
 | jqe, Pikafish | `board side pools no-capture number` |
-| JieqiBox | `board side pools captured - - no-capture number` |
+| JieqiBox "new" | `board side pools captured no-capture number` |
+| JieqiBox "old" | `board pools side [- - no-capture number]` |
 | PengfeiChess 7-field | `board side pools captured - - no-capture number` |
 | PengfeiChess 6-field | `board side pools captured - no-capture number` |
 | ACE `UCI_PF` | `board $pools side - - no-capture number` |
+
+Counters may be omitted, as in JieqiBox's three-field old-order FEN for its human-versus-AI games;
+they then read as `0 1`, the same default Pikafish and AB-JChess use.
 
 A malformed FEN is refused with `info string bad fen: <reason>`, and the previous position is
 kept, so a search would then answer for the wrong position. Check that line first when a GUI

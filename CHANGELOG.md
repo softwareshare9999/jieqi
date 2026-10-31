@@ -21,6 +21,11 @@
   engine-options dialog hung on "loading" and never fetched the option list (jqe's stored
   `<Options />` was empty with `LastGetOptionsTime` at `01/01/0001`). The default is now an empty
   string.
+* **GUI compatibility.** JieqiBox's old-order FEN for its human-versus-AI games carries no counters;
+  it is accepted and read as `0 1`, as Pikafish and AB-JChess do. A `.jqn` path given as a
+  command-line argument loads that net instead of being run as a one-shot command, so an engine
+  started with its net as an argument still completes the UCI handshake. The README now lists which
+  binary belongs in which GUI ([engine/README.md](engine/README.md)).
 
 ## 0.1.0 (2026-10-13)
 
