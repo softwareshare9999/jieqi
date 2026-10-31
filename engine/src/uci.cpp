@@ -84,6 +84,20 @@ std::string find_net(const std::string& argv0) {
     return std::string();
 }
 
+// The engine's own directory, so a bare filename in EvalFile can be resolved against it.
+std::string g_engineDir;
+
+// Resolve an EvalFile value. A GUI's browse button gives an absolute path, but users also type a
+// bare filename; try the value as given, then beside the executable, then in nets/ beside it.
+std::string resolve_net(const std::string& value) {
+    if (has_jqn_magic(value)) return value;
+    if (value.find('/') == std::string::npos && value.find('\\') == std::string::npos) {
+        for (const std::string& c : {g_engineDir + "/" + value, g_engineDir + "/nets/" + value})
+            if (has_jqn_magic(c)) return c;
+    }
+    return std::string();
+}
+
 const char* BENCH_FENS[] = {
     "xxxxkxxxx/9/1x5x1/x1x1x1x1x/9/9/X1X1X1X1X/1X5X1/9/XXXXKXXXX w R2A2C2P5N2B2r2a2c2p5n2b2 0 1",
     "xxxxkxxxx/9/1x5x1/x1x1x1x1x/9/4P4/X1X3X1X/1X5X1/9/XXXXKXXXX b R2A2C2P4N2B2r2a2c2p5n2b2 1 1",
@@ -152,11 +166,20 @@ struct Engine {
         else if (name == "Clear Hash") searcher.clear();
         else if (name == "NNUEQuant") { nnue::set_quantized(value == "true"); searcher.clear(); }
         else if (name == "EvalFile") {
-            evalFile = value;
             std::string err;
-            if (value.empty() || value == "<empty>") { nnue::unload(); out("info string EvalFile unloaded"); }
-            else if (!nnue::load(value, &err)) out("info string EvalFile load failed: " + err);
-            else out("info string EvalFile loaded " + value);
+            if (value.empty() || value == "<empty>") {
+                evalFile.clear();
+                nnue::unload();
+                out("info string EvalFile unloaded");
+            } else if (const std::string path = resolve_net(value); !path.empty() && nnue::load(path, &err)) {
+                evalFile = path;
+                out("info string EvalFile loaded " + path);
+            } else {
+                if (path.empty()) err = "cannot find a JQN1 net named " + value;
+                out("info string EvalFile load failed: " + err);
+                out("info string EvalFile still " +
+                    (nnue::loaded() ? evalFile : std::string("<none>")));
+            }
             searcher.clear();
         } else {
             for (Param& p : params())
@@ -248,6 +271,11 @@ struct Engine {
 
 int uci_loop(int argc, char** argv) {
     if (const char* env = std::getenv("JQE_LOG")) open_log(env);
+    if (argc > 0 && argv[0]) {
+        const std::string self = argv[0];
+        const std::size_t slash = self.find_last_of("/\\");
+        g_engineDir = slash == std::string::npos ? std::string(".") : self.substr(0, slash);
+    }
     Engine engine;
     engine.autoload_net(argc > 0 ? argv[0] : "");
     // A net path in the arguments loads the net and then behaves like any other engine: a GUI
